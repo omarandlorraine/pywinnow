@@ -28,28 +28,49 @@ def read_file(filename): # pywinnow:bad
                 maybe_append(filename, line, tok, "bad", bad)
                 maybe_append(filename, line, tok, "ugly", ugly)
 
-def walk_ast(body):
-    for statement in body:
-        if type(statement) in (ast.FunctionDef, ast.With, ast.For, ast.FunctionDef):
-            for s in walk_ast(statement.body):
-                yield s
-        elif isinstance(statement, ast.If):
-            yield statement.test
-            print(dir(statement.test))
-            print(dir(statement.test.comparators))
-            for s in walk_ast(statement.body):
-                yield s
-            for s in walk_ast(statement.orelse):
-                yield s
-        elif type(statement) in (ast.Import,ast.Global):
-            print("ignoring ", statement)
-        else:
-            yield statement
+def walk_ast(statement):
+    if isinstance(statement, list):
+        for s in statement:
+            for st in walk_ast(s):
+                yield st
+    elif type(statement) in (ast.FunctionDef, ast.With, ast.For, ast.FunctionDef):
+        for s in walk_ast(statement.body):
+            yield s
+    elif isinstance(statement, ast.If):
+        for s in walk_ast([statement.test, statement.body, statement.orelse]):
+            yield s
+    elif isinstance(statement, ast.Call):
+        for s in walk_ast([statement.func, statement.args]):
+            yield s
+    elif isinstance(statement, ast.Tuple):
+        for s in walk_ast(statement.elts):
+            yield s
+    elif isinstance(statement, ast.Assign):
+        for s in walk_ast(statement.targets):
+            yield s
+        yield statement.value
+    elif type(statement) in (ast.Import, ast.Global):
+        print("ignoring ", statement)
+    else:
+        yield statement
+
+def print_statement(filename, statement):
+    try:
+        string = statement.id
+    except:
+        string = statement
+    print(f"{filename}:{statement.lineno}: {string}")
+
+def check(filename, statement):
+    if isinstance(statement, ast.Tuple):
+        print(dir(statement))
+    else:
+        print_statement(filename, statement)
 
 def process_file(filename):
     with open(filename, "rb") as file:
         for statement in walk_ast(ast.parse(file.read(), filename=filename).body):
-            print(statement)
+            check(filename, statement)
 
 for _pass in [read_file, process_file]:
     for fn in all_files:
